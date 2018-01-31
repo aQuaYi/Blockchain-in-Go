@@ -1,2 +1,5 @@
 *.db
 *.dat
+
+# 排除 .idea 文件夹
+.idea

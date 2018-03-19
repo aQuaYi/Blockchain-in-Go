@@ -28,10 +28,10 @@ func (u UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[s
 			txID := hex.EncodeToString(k)
 			outs := DeserializeOutputs(v)
 
-			for outIdx, out := range outs.Outputs {
-				if out.IsLockedWithKey(pubkeyHash) && accumulated < amount {
-					accumulated += out.Value
-					unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
+			for i := range outs.Outputs {
+				if outs.Outputs[i].IsLockedWithKey(pubkeyHash) && accumulated < amount {
+					accumulated += outs.Outputs[i].Value
+					unspentOutputs[txID] = append(unspentOutputs[txID], i)
 				}
 			}
 		}
@@ -57,9 +57,9 @@ func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			outs := DeserializeOutputs(v)
 
-			for _, out := range outs.Outputs {
-				if out.IsLockedWithKey(pubKeyHash) {
-					UTXOs = append(UTXOs, out)
+			for i := range outs.Outputs {
+				if outs.Outputs[i].IsLockedWithKey(pubKeyHash) {
+					UTXOs = append(UTXOs, outs.Outputs[i])
 				}
 			}
 		}
@@ -153,9 +153,9 @@ func (u UTXOSet) Update(block *Block) {
 					outsBytes := b.Get(vin.Txid)
 					outs := DeserializeOutputs(outsBytes)
 
-					for outIdx, out := range outs.Outputs {
-						if outIdx != vin.Vout {
-							updatedOuts.Outputs = append(updatedOuts.Outputs, out)
+					for i := range outs.Outputs {
+						if i != vin.Vout {
+							updatedOuts.Outputs = append(updatedOuts.Outputs, outs.Outputs[i])
 						}
 					}
 
@@ -175,8 +175,8 @@ func (u UTXOSet) Update(block *Block) {
 			}
 
 			newOutputs := TXOutputs{}
-			for _, out := range tx.Vout {
-				newOutputs.Outputs = append(newOutputs.Outputs, out)
+			for i := range tx.Vout {
+				newOutputs.Outputs = append(newOutputs.Outputs, tx.Vout[i])
 			}
 
 			err := b.Put(tx.ID, newOutputs.Serialize())

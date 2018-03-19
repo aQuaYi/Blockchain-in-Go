@@ -166,7 +166,7 @@ func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 			txID := hex.EncodeToString(tx.ID)
 
 		Outputs:
-			for outIdx, out := range tx.Vout {
+			for outIdx := range tx.Vout {
 				// Was the output spent?
 				if spentTXOs[txID] != nil {
 					for _, spentOutIdx := range spentTXOs[txID] {
@@ -177,7 +177,7 @@ func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 				}
 
 				outs := UTXO[txID]
-				outs.Outputs = append(outs.Outputs, out)
+				outs.Outputs = append(outs.Outputs, tx.Vout[outIdx])
 				UTXO[txID] = outs
 			}
 
@@ -233,7 +233,7 @@ func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
 		blockData := b.Get(blockHash)
 
 		if blockData == nil {
-			return errors.New("Block is not found.")
+			return errors.New("block is not found")
 		}
 
 		block = *DeserializeBlock(blockData)

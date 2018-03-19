@@ -5,6 +5,7 @@ import (
 	"log"
 )
 
+// 获取指定地址的账户余额
 func (cli *CLI) getBalance(address, nodeID string) {
 	if !ValidateAddress(address) {
 		log.Panic("ERROR: Address is not valid")
@@ -18,8 +19,8 @@ func (cli *CLI) getBalance(address, nodeID string) {
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
 	UTXOs := UTXOSet.FindUTXO(pubKeyHash)
 
-	for _, out := range UTXOs {
-		balance += out.Value
+	for i := range UTXOs {
+		balance += UTXOs[i].Value
 	}
 
 	fmt.Printf("Balance of '%s': %d\n", address, balance)

@@ -3,25 +3,23 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
-	"strconv"
+	"log"
+	"math"
+	"math/big"
 	"time"
 )
 
+const targetBits = 20
+const maxNonce = math.MaxInt64
+
 type block struct {
 	timestamp    int64
-	preBlockHash []byte
 	data         []byte
+	preBlockHash []byte
 	hash         []byte
-}
-
-func (b *block) setHash() {
-	timestamp := []byte(strconv.FormatInt(b.timestamp, 10))
-	header := bytes.Join([][]byte{timestamp, b.preBlockHash, b.data}, []byte{})
-
-	hash := sha256.Sum256(header)
-
-	b.hash = hash[:]
+	Nonce        int
 }
 
 func newBlock(data string, preBlockHash []byte) *block {
@@ -31,7 +29,11 @@ func newBlock(data string, preBlockHash []byte) *block {
 		data:         []byte(data),
 	}
 
-	b.setHash()
+	pow := newProofOfWork(b)
+	nonce, hash := pow.Run()
+
+	b.hash = hash
+	b.Nonce = nonce
 
 	return b
 }
@@ -62,9 +64,91 @@ func (bc *blockchain) print() {
 	for _, b := range bc.blocks {
 		fmt.Printf("pre  Hash: %x\n", b.preBlockHash)
 		fmt.Printf("     data: %s\n", b.data)
+		pow := newProofOfWork(b)
+		fmt.Printf("      PoW: %t\n", pow.validate())
 		fmt.Printf("this Hash: %x\n", b.hash)
 		fmt.Println()
 	}
+}
+
+// ProofOfWork 是工作量证明结构体
+type ProofOfWork struct {
+	block  *block
+	target *big.Int
+}
+
+func newProofOfWork(b *block) *ProofOfWork {
+	target := big.NewInt(1)
+	target.Lsh(target, uint(256-targetBits))
+
+	pow := &ProofOfWork{
+		block:  b,
+		target: target,
+	}
+
+	return pow
+}
+
+func (pow *ProofOfWork) prepareData(nonce int) []byte {
+	data := bytes.Join(
+		[][]byte{
+			pow.block.preBlockHash,
+			pow.block.data,
+			IntToHex(pow.block.timestamp),
+			IntToHex(int64(targetBits)),
+			IntToHex(int64(nonce)),
+		},
+		[]byte{},
+	)
+
+	return data
+}
+
+// IntToHex converts an int64 to a byte array
+// TODO: 解释这个函数
+func IntToHex(num int64) []byte {
+	buff := new(bytes.Buffer)
+	err := binary.Write(buff, binary.BigEndian, num)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return buff.Bytes()
+}
+
+// Run 是进行工作
+func (pow *ProofOfWork) Run() (int, []byte) {
+	var hashInt big.Int
+	var hash [32]byte
+	nonce := 0
+
+	fmt.Printf("Mining the block containing \"%s\"\n", pow.block.data)
+
+	for nonce < maxNonce {
+		data := pow.prepareData(nonce)
+		hash = sha256.Sum256(data)
+		fmt.Printf("\r%x", hash)
+
+		hashInt.SetBytes(hash[:])
+		if hashInt.Cmp(pow.target) == -1 {
+			break
+		}
+
+		nonce++
+	}
+
+	fmt.Printf("\n\n")
+
+	return nonce, hash[:]
+}
+
+func (pow *ProofOfWork) validate() bool {
+	var hashInt big.Int
+	data := pow.prepareData(pow.block.Nonce)
+	hash := sha256.Sum256(data)
+	hashInt.SetBytes(hash[:])
+
+	return hashInt.Cmp(pow.target) == -1
 }
 
 func main() {
@@ -72,6 +156,7 @@ func main() {
 
 	bc.addBlock("Send 1 BTC to Alice")
 	bc.addBlock("Send 2 BTC to Bob")
+	bc.addBlock("Send 3 BTC to Candy")
 
 	bc.print()
 }

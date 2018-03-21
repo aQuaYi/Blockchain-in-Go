@@ -11,8 +11,13 @@ import (
 	"time"
 )
 
-const targetBits = 20
-const maxNonce = math.MaxInt64
+const (
+	// targetBits 控制 pow 的难度
+	// targetBits 越小，范围的上限就越大，pow 就越容易
+	targetBits = 20
+	// maxNonce 防止 pow 时，溢出
+	maxNonce = math.MaxInt64
+)
 
 type block struct {
 	timestamp    int64
@@ -43,21 +48,23 @@ type blockchain struct {
 	blocks []*block
 }
 
-// addBlock 往 bc 中添加新的区块
-func (bc *blockchain) addBlock(data string) {
-	preBlockHash := bc.blocks[len(bc.blocks)-1].hash
-	b := newBlock(data, preBlockHash)
-	bc.blocks = append(bc.blocks, b)
-}
-
 func newBlockchain() *blockchain {
 	return &blockchain{
+		// 创世区块作为区块链的第一个区块
 		blocks: []*block{makeGenesisBlock()},
 	}
 }
 
 func makeGenesisBlock() *block {
+	// 创世区块的 preBlockhash 为空
 	return newBlock("Genesis Block", []byte{})
+}
+
+// addBlock 往 bc 中添加新的区块
+func (bc *blockchain) addBlock(data string) {
+	preBlockHash := bc.blocks[len(bc.blocks)-1].hash
+	b := newBlock(data, preBlockHash)
+	bc.blocks = append(bc.blocks, b)
 }
 
 func (bc *blockchain) print() {
@@ -79,6 +86,7 @@ type ProofOfWork struct {
 
 func newProofOfWork(b *block) *ProofOfWork {
 	target := big.NewInt(1)
+	// Lsh 是把 target 左移了
 	target.Lsh(target, uint(256-targetBits))
 
 	pow := &ProofOfWork{
@@ -105,14 +113,13 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 }
 
 // IntToHex converts an int64 to a byte array
-// TODO: 解释这个函数
+// TODO: 弄清楚本函数的原理
 func IntToHex(num int64) []byte {
 	buff := new(bytes.Buffer)
 	err := binary.Write(buff, binary.BigEndian, num)
 	if err != nil {
 		log.Panic(err)
 	}
-
 	return buff.Bytes()
 }
 

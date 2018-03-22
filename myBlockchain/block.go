@@ -15,6 +15,13 @@ type block struct {
 	Nonce        int
 }
 
+func (b *block) String() {
+res :=	
+
+	return 
+}
+
+
 func newBlock(data string, preBlockHash []byte) *block {
 	b := &block{
 		timestamp:    time.Now().Unix(),

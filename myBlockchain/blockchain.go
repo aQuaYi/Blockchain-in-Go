@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+
 	"github.com/boltdb/bolt"
 )
 
@@ -18,6 +20,9 @@ type blockchain struct {
 func newBlockchain() *blockchain {
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -25,6 +30,9 @@ func newBlockchain() *blockchain {
 		if b == nil {
 			genesis := makeGenesisBlock()
 			b, err := tx.CreateBucket([]byte(blocksBucket))
+			if err != nil {
+				log.Fatal(err)
+			}
 			err = b.Put(genesis.hash, genesis.Serialize())
 			err = b.Put([]byte("l"), genesis.hash)
 			tip = genesis.hash
@@ -53,6 +61,9 @@ func (bc *blockchain) addBlock(data string) {
 
 		return nil
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	newBlock := newBlock(data, lastHash)
 
@@ -87,6 +98,9 @@ func (bi *blockchainIterator) Next() *block {
 		block = deserializeBlock(encBlock)
 		return nil
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	bi.currentHash = block.preBlockHash
 	return block

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -23,8 +24,14 @@ func (cli *CLI) Run() {
 	switch os.Args[1] {
 	case "addblock":
 		err := addBlockCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Fatal(err)
+		}
 	case "printchain":
 		err := printChainCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Fatal(err)
+		}
 	default:
 		cli.printUsage()
 		os.Exit(1)
@@ -60,8 +67,15 @@ func (cli *CLI) addBlock(data string) {
 
 func (cli *CLI) printChain() {
 	bi := cli.bc.Iterator()
+
+	// TODO: 删除此处输出}
+	fmt.Println(bi.currentHash)
+
 	for len(bi.currentHash) != 0 {
 		b := bi.Next()
+
+		// TODO: 删除此处输出}
+		fmt.Println(b)
 
 		fmt.Printf(" Prev. hash	: %s\n", b.preBlockHash)
 		fmt.Printf("		data:%s\n", b.data)

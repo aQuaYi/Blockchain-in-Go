@@ -1,33 +1,93 @@
 package main
 
-import "fmt"
+import (
+	"github.com/boltdb/bolt"
+)
+
+const (
+	dbFile       = "bc.db"
+	blocksBucket = "bc"
+)
 
 // blockchain 表示了一条区块链
 type blockchain struct {
-	blocks []*block
+	tip []byte
+	db  *bolt.DB
 }
 
 func newBlockchain() *blockchain {
-	return &blockchain{
-		// 创世区块作为区块链的第一个区块
-		blocks: []*block{makeGenesisBlock()},
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+
+		if b == nil {
+			genesis := makeGenesisBlock()
+			b, err := tx.CreateBucket([]byte(blocksBucket))
+			err = b.Put(genesis.hash, genesis.Serialize())
+			err = b.Put([]byte("l"), genesis.hash)
+			tip = genesis.hash
+		} else {
+			tip = b.Get([]byte("l"))
+		}
+
+		return nil
+	})
+
+	bc := blockchain{
+		tip: tip,
+		db:  db,
 	}
+
+	return &bc
 }
 
 // addBlock 往 bc 中添加新的区块
 func (bc *blockchain) addBlock(data string) {
-	preBlockHash := bc.blocks[len(bc.blocks)-1].hash
-	b := newBlock(data, preBlockHash)
-	bc.blocks = append(bc.blocks, b)
+	var lastHash []byte
+
+	err := bc.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		lastHash = b.Get([]byte("l"))
+
+		return nil
+	})
+
+	newBlock := newBlock(data, lastHash)
+
+	err = bc.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		err = b.Put(newBlock.hash, newBlock.Serialize())
+		err = b.Put([]byte("l"), newBlock.hash)
+		bc.tip = newBlock.hash
+
+		return nil
+	})
 }
 
-func (bc *blockchain) print() {
-	for _, b := range bc.blocks {
-		fmt.Printf("pre  Hash: %x\n", b.preBlockHash)
-		fmt.Printf("     data: %s\n", b.data)
-		pow := newProofOfWork(b)
-		fmt.Printf("      PoW: %t\n", pow.validate())
-		fmt.Printf("this Hash: %x\n", b.hash)
-		fmt.Println()
+type blockchainIterator struct {
+	currentHash []byte
+	db          *bolt.DB
+}
+
+func (bc blockchain) Iterator() *blockchainIterator {
+	return &blockchainIterator{
+		currentHash: bc.tip,
+		db:          bc.db,
 	}
+}
+
+func (bi *blockchainIterator) Next() *block {
+	var block *block
+
+	err := bi.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		encBlock := b.Get(bi.currentHash)
+		block = deserializeBlock(encBlock)
+		return nil
+	})
+
+	bi.currentHash = block.preBlockHash
+	return block
 }

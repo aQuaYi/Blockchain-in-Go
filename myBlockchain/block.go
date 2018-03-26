@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"log"
 	"time"
 )
@@ -15,12 +16,14 @@ type block struct {
 	Nonce        int
 }
 
-func (b *block) String() {
-res :=	
-
-	return 
+func (b *block) String() string {
+	pow := newProofOfWork(b)
+	res := fmt.Sprintf("Prev. Hash: %x\n", b.preBlockHash)
+	res += fmt.Sprintf("      Data: %s\n", b.data)
+	res += fmt.Sprintf("       PoW: %t\n", pow.validate())
+	res += fmt.Sprintf("This  Hash: %x\n", b.hash)
+	return res
 }
-
 
 func newBlock(data string, preBlockHash []byte) *block {
 	b := &block{

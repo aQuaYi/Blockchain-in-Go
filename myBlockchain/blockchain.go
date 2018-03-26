@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/boltdb/bolt"
@@ -26,7 +27,6 @@ func newBlockchain() *blockchain {
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
-
 		if b == nil {
 			genesis := makeGenesisBlock()
 			b, err := tx.CreateBucket([]byte(blocksBucket))
@@ -90,6 +90,11 @@ func (bc blockchain) Iterator() *blockchainIterator {
 }
 
 func (bi *blockchainIterator) Next() *block {
+
+	// TODO: 删除此处输出}
+	fmt.Println("Next()")
+	fmt.Printf("%x\n", bi.currentHash)
+
 	var block *block
 
 	err := bi.db.View(func(tx *bolt.Tx) error {
@@ -101,6 +106,11 @@ func (bi *blockchainIterator) Next() *block {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// TODO: 删除此处输出}
+	fmt.Println("this is bi.Next()")
+	fmt.Println(block)
+	fmt.Println("~~~~")
 
 	bi.currentHash = block.preBlockHash
 	return block

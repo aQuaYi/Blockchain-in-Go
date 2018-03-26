@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 )
 
 // CLI 负责处理从命令行接收的指令
@@ -51,13 +52,16 @@ func (cli *CLI) Run() {
 }
 
 func (cli *CLI) validateArgs() {
-
-	return
+	if len(os.Args) < 2 {
+		cli.printUsage()
+		os.Exit(1)
+	}
 }
 
 func (cli *CLI) printUsage() {
-
-	return
+	fmt.Println("Usage:")
+	fmt.Println("  addblock -data BLOCK_DATA - add a block to the blockchain")
+	fmt.Println("  printchain - print all the blocks of the blockchain")
 }
 
 func (cli *CLI) addBlock(data string) {
@@ -66,22 +70,21 @@ func (cli *CLI) addBlock(data string) {
 }
 
 func (cli *CLI) printChain() {
+	fmt.Println("Begin printchain...")
+
 	bi := cli.bc.Iterator()
+	for {
+		block := bi.Next()
 
-	// TODO: 删除此处输出}
-	fmt.Println(bi.currentHash)
+		fmt.Printf("Prev. hash: %x\n", block.preBlockHash)
+		fmt.Printf("Data: %s\n", block.data)
+		fmt.Printf("Hash: %x\n", block.hash)
+		pow := newProofOfWork(block)
+		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.validate()))
+		fmt.Println()
 
-	for len(bi.currentHash) != 0 {
-		b := bi.Next()
-
-		// TODO: 删除此处输出}
-		fmt.Println(b)
-
-		fmt.Printf(" Prev. hash	: %s\n", b.preBlockHash)
-		fmt.Printf("		data:%s\n", b.data)
-		pow := newProofOfWork(b)
-		fmt.Printf("		Pow	: %t\n", pow.validate())
-		fmt.Printf("  this hash	:%s\n", b.hash)
-		fmt.Println("")
+		if len(block.preBlockHash) == 0 {
+			break
+		}
 	}
 }

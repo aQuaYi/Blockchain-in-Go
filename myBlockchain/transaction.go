@@ -4,9 +4,7 @@ import (
 	"fmt"
 )
 
-var (
-	subsidy = 10
-)
+const subsidy = 10
 
 // Transaction 是交易
 type Transaction struct {

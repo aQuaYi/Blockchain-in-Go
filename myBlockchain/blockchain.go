@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -95,6 +96,79 @@ func dbExists() bool {
 
 // NewBlockchain 使用 genesis Block 创建一条新的区块
 func NewBlockchain(address string) *Blockchain {
+	if dbExists() == false {
+		fmt.Println("没有找到区块链数据库。请先创建一个")
+		os.Exit(1)
+	}
 
-	return nil
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		tip = b.Get([]byte("l"))
+		return nil
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bc := Blockchain{
+		tip: tip,
+		db:  db,
+	}
+
+	return &bc
+}
+
+// CreateBlockchain 创建一个新的区块链数据库文件
+func CreateBlockchain(address string) *Blockchain {
+	if dbExists() {
+		fmt.Println("区块链已经存在")
+		os.Exit(1)
+	}
+
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
+		genesis := NewGenesisBlock(cbtx)
+
+		b, err := tx.CreateBucket([]byte(blocksBucket))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = b.Put(genesis.Hash, genesis.Serialize())
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = b.Put([]byte("l"), genesis.Hash)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		tip = genesis.Hash
+
+		return nil
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bc := Blockchain{
+		tip: tip,
+		db:  db,
+	}
+
+	return &bc
 }

@@ -12,7 +12,7 @@ var (
 	maxNonce = math.MaxInt64
 )
 
-const targetBits = 24
+var targetBits = 10
 
 // ProofOfWork represents a proof-of-work
 type ProofOfWork struct {

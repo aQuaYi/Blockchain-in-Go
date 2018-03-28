@@ -26,6 +26,7 @@ func (tx Transaction) IsCoinbase() bool {
 }
 
 // SetID 为此 transaction 设置 ID
+// ID 是根据交易中输入输出的内容生成的哈希值
 func (tx *Transaction) SetID() {
 	var encoded bytes.Buffer
 	var hash [32]byte
@@ -91,37 +92,51 @@ func NewCoinbaseTX(to, data string) *Transaction {
 
 // NewUTXOTransaction 会创建一个 transaction
 func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transaction {
+	// 为交易所需的 inputs 和 outputs 创建变量
 	var inputs []TXInput
 	var outputs []TXOutput
 
+	// 在区块链中搜寻所有属于 from 的 coin
 	acc, validOutputs := bc.FindSpendableOutputs(from, amount)
 
+	// 所有属于 from 的 coin 数量不足此次交易的数量
+	// 无法生成此次交易
 	if acc < amount {
 		log.Panic("ERROR: Not enough funds")
 	}
 
+	// acc >= amount，说明 from 有足够的 coin 完成此次交易
 	// Build a list of inputs
 	for txid, outs := range validOutputs {
+		// 获取可引用输出所在的交易的 ID
 		txID, err := hex.DecodeString(txid)
 		if err != nil {
 			log.Fatal(err)
 		}
 
+		// 获取可引用输出的数量
 		for _, out := range outs {
+			// 利用 txID 和 out 一起生成
+			// 作为新交易的 input
 			input := TXInput{
 				Txid:      txID,
 				Vout:      out,
 				ScriptSig: from,
 			}
+			// 把所有的新 input 收集到 inputs 中
 			inputs = append(inputs, input)
 		}
 	}
 
 	// Build a list of outputs
+	// 生成此次交易的主要输出
 	outputs = append(outputs, TXOutput{
 		Value:        amount,
 		ScriptPubkey: to,
 	})
+	// acc > amount 的时候
+	// 需要找零给 from
+	// 所以，还需要一个输出给 from
 	if acc > amount {
 		outputs = append(outputs, TXOutput{
 			Value:        acc - amount,
@@ -129,6 +144,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 		})
 	}
 
+	// 真正生成交易
 	tx := Transaction{
 		Vin:  inputs,
 		Vout: outputs,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -39,7 +40,7 @@ func (bc *Blockchain) AddBlock(data string) {
 		log.Panic(err)
 	}
 
-	newBlock := NewBlock(data, lastHash)
+	newBlock := NewBlock(nil, lastHash)
 
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -173,8 +174,79 @@ func CreateBlockchain(address string) *Blockchain {
 	return &bc
 }
 
-// FindSpendableOutputs 寻找并返回没有花掉的输出
-func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+// FindUnspentTransactions returns a list of transactions containing unspent outputs
+// TODO: 弄清楚这个方法
+func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
+	var unspentTXs []Transaction
+	spentTXOs := make(map[string][]int)
+	bci := bc.Iterator()
 
-	return 0, nil
+	for {
+		block := bci.Next()
+
+		// 遍历此 block 的所有交易
+		for _, tx := range block.Transaction {
+			// TODO: txID 到底是什么鬼
+			// 获取这个交易的 ID
+			txID := hex.EncodeToString(tx.ID)
+
+		Outputs:
+			// 遍历此交易的所有输出
+			for outIdx, out := range tx.Vout {
+
+				if spentTXOs[txID] != nil {
+					for _, spentOut := range spentTXOs[txID] {
+						if spentOut == outIdx {
+							continue Outputs
+						}
+					}
+				}
+
+				if out.CanBeUnlockedWith(address) {
+					unspentTXs = append(unspentTXs, *tx)
+				}
+
+			}
+			if tx.IsCoinbase() == false {
+				for _, in := range tx.Vin {
+					if in.CanUnlockOutputWith(address) {
+						inTxID := hex.EncodeToString(in.Txid)
+						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
+					}
+				}
+			}
+		}
+
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+	}
+
+	return unspentTXs
+}
+
+// FindSpendableOutputs 寻找并返回没有花掉的输出
+// TODO: 弄清楚这个方法
+func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+	unspentOutputs := make(map[string][]int)
+	unspentTXs := bc.FindUnspentTransactions(address)
+	accumulated := 0
+
+work:
+	for _, tx := range unspentTXs {
+		txID := hex.EncodeToString(tx.ID)
+
+		for outIdx, out := range tx.Vout {
+			if out.CanBeUnlockedWith(address) && accumulated < amount {
+				accumulated += out.Value
+				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
+
+				if accumulated >= amount {
+					break work
+				}
+			}
+		}
+	}
+
+	return accumulated, unspentOutputs
 }

@@ -172,3 +172,9 @@ func CreateBlockchain(address string) *Blockchain {
 
 	return &bc
 }
+
+// FindSpendableOutputs 寻找并返回没有花掉的输出
+func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+
+	return 0, nil
+}

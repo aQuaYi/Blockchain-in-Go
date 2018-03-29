@@ -34,7 +34,7 @@ func (tx *Transaction) SetID() {
 	enc := gob.NewEncoder(&encoded)
 	err := enc.Encode(tx)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	hash = sha256.Sum256(encoded.Bytes())
 	tx.ID = hash[:]
@@ -42,15 +42,15 @@ func (tx *Transaction) SetID() {
 
 // TXInput 是交易jk的输入值
 type TXInput struct {
-	Txid      []byte
-	Vout      int
-	ScriptSig string
+	Txid      []byte // Txid 是此 input 所引用的 output 所在的交易的 ID
+	Vout      int    // Vout 是此 input 所引用的 output 的值
+	ScriptSig string // ScriptSig 是此 input 解锁 output 所用的秘钥
 }
 
 // TXOutput 是交易的输出值
 type TXOutput struct {
-	Value        int
-	ScriptPubkey string
+	Value        int    // 此 output 的数值
+	ScriptPubkey string // 被 input 引用时，用于验证引用者是否具有所有权
 }
 
 // CanUnlockOutputWith 返回 true，如果 unlockingData 可以解锁此 TXInput
@@ -111,7 +111,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 		// 获取可引用输出所在的交易的 ID
 		txID, err := hex.DecodeString(txid)
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 
 		// 获取可引用输出的数量

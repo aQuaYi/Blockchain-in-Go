@@ -25,8 +25,8 @@ type BlockchainIterator struct {
 	db          *bolt.DB
 }
 
-// AddBlock saves provided data as a block in the blockchain
-func (bc *Blockchain) AddBlock(data string) {
+// MineBlock mines a new block with the provided transactions
+func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
@@ -60,7 +60,135 @@ func (bc *Blockchain) AddBlock(data string) {
 	})
 }
 
-// Iterator ...
+// FindUnspentTransactions returns a list of transactions containing unspent outputs
+// TODO: 弄清楚这个方法
+func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
+	// 存放有没有被引用的输出的所有交易
+	var unspentTXs []Transaction
+	// 存放所有已经被引用的输出
+	spentTXOs := make(map[string][]int)
+	// 区块链的迭代器
+	bci := bc.Iterator()
+
+	for {
+		// 从最新的区块开始迭代
+		block := bci.Next()
+
+		// 遍历此 block 的所有交易
+		for _, tx := range block.Transactions {
+			// TODO: txID 到底是什么鬼
+			// 获取这个交易的 ID
+			txID := hex.EncodeToString(tx.ID)
+
+		Outputs:
+			// 遍历此交易的所有输出
+			for outIdx, out := range tx.Vout {
+				// 如果 spentTXOs 中存在 txID 的记录
+				if spentTXOs[txID] != nil {
+					// 遍历此 txID 的所有记录
+					for _, spentOut := range spentTXOs[txID] {
+						// 如果存在一样的索引号
+						// 则跳过这个交易
+						// TODO: 此处的代码
+						// if spentOut == out.Value {
+						if spentOut == outIdx {
+							continue Outputs
+						}
+					}
+				}
+
+				// 如果输出 out 可以被 address 解锁
+				// 说明此 out 是address 还没有花的钱
+				if out.CanBeUnlockedWith(address) {
+					// 把这个交易放入 unspentTXs
+					unspentTXs = append(unspentTXs, *tx)
+				}
+			}
+			// 如果 tx 不是 Coinbase 交易的话
+			// tx 一定是对别的交易的输出进行了引用
+			// 要把这些交易找出来，放入 spentTXOs
+			if tx.IsCoinbase() == false {
+				// 对于此交易中的所有的 input
+				for _, in := range tx.Vin {
+					// 如果 in 能由 address 生成
+					if in.CanUnlockOutputWith(address) {
+						// 获取 input 所引用的 output 所在交易的 ID
+						inTxID := hex.EncodeToString(in.Txid)
+						// TODO: 此处的代码
+						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
+					}
+				}
+			}
+		}
+
+		if len(block.PrevBlockHash) == 0 {
+			// 已经遍历完成了所有区块
+			// 结束循环
+			break
+		}
+	}
+
+	// 返回所有没有花费的交易
+	return unspentTXs
+}
+
+// FindUTXO finds and returns all unspent transaction outputs
+func (bc *Blockchain) FindUTXO(address string) []TXOutput {
+	var UTXOs []TXOutput
+	unspentTransactions := bc.FindUnspentTransactions(address)
+
+	for _, tx := range unspentTransactions {
+		for _, out := range tx.Vout {
+			if out.CanBeUnlockedWith(address) {
+				UTXOs = append(UTXOs, out)
+			}
+		}
+	}
+
+	return UTXOs
+}
+
+// FindSpendableOutputs 寻找并返回没有花掉的输出
+// TODO: 弄清楚这个方法
+func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+	// 没有被引用的输出们
+	unspentOutputs := make(map[string][]int)
+	// 包含 address 可以引用的输出的交易们
+	unspentTXs := bc.FindUnspentTransactions(address)
+	// 所有未引用输出的累计数量
+	accumulated := 0
+
+work:
+	// 遍历 unspentTXs 中的每一个交易
+	for _, tx := range unspentTXs {
+		// 获取此交易的 ID
+		txID := hex.EncodeToString(tx.ID)
+		// 对于此交易的每一个输出而言
+		for outIdx, out := range tx.Vout {
+			// 如果输出能被 address 解锁 → 说明，这是 address 的钱
+			// 且，还没有累计到所需的数量
+			if out.CanBeUnlockedWith(address) && accumulated < amount {
+				// 那就算上这个输出吧
+				accumulated += out.Value
+				// 并把这个交易带上
+				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
+				// TODO: 核查此处代码
+				// unspentOutputs[txID] = append(unspentOutputs[txID], out.Value)
+
+				if accumulated >= amount {
+					//  如果累计到了足够的钱
+					// 就可以收手了
+					break work
+				}
+			}
+		}
+	}
+
+	// 返回已经累计的钱数 和 包含这些钱的输出们
+	return accumulated, unspentOutputs
+}
+
+// Iterator 返回区块链的迭代器
 func (bc *Blockchain) Iterator() *BlockchainIterator {
 	bci := &BlockchainIterator{bc.tip, bc.db}
 
@@ -114,7 +242,7 @@ func NewBlockchain(address string) *Blockchain {
 		return nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	bc := Blockchain{
@@ -135,7 +263,7 @@ func CreateBlockchain(address string) *Blockchain {
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
@@ -144,17 +272,17 @@ func CreateBlockchain(address string) *Blockchain {
 
 		b, err := tx.CreateBucket([]byte(blocksBucket))
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 
 		err = b.Put(genesis.Hash, genesis.Serialize())
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 
 		err = b.Put([]byte("l"), genesis.Hash)
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 
 		tip = genesis.Hash
@@ -163,7 +291,7 @@ func CreateBlockchain(address string) *Blockchain {
 	})
 
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	bc := Blockchain{
@@ -172,91 +300,4 @@ func CreateBlockchain(address string) *Blockchain {
 	}
 
 	return &bc
-}
-
-// FindUnspentTransactions returns a list of transactions containing unspent outputs
-// TODO: 弄清楚这个方法
-func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
-	// 存放有没有被引用的输出的所有交易
-	var unspentTXs []Transaction
-	// 存放所有已经被引用的输出
-	spentTXOs := make(map[string][]int)
-	// 区块链的迭代器
-	bci := bc.Iterator()
-
-	for {
-		// 从最新的区块开始迭代
-		block := bci.Next()
-
-		// 遍历此 block 的所有交易
-		for _, tx := range block.Transaction {
-			// TODO: txID 到底是什么鬼
-			// 获取这个交易的 ID
-			txID := hex.EncodeToString(tx.ID)
-
-		Outputs:
-			// 遍历此交易的所有输出
-			for outIdx, out := range tx.Vout {
-				// 如果 spentTXOs 中存在 txID 的记录
-				if spentTXOs[txID] != nil {
-					// 遍历此 txID 的所有记录
-					for _, spentOut := range spentTXOs[txID] {
-						// 如果存在一样的索引号
-						// 则跳过这个交易
-						if spentOut == outIdx {
-							continue Outputs
-						}
-					}
-				}
-
-				// 如果输出 out 可以被 address 解锁
-				// 说明此 out 是address 还没有花的钱
-				if out.CanBeUnlockedWith(address) {
-					// 把这个交易放入 unspentTXs
-					unspentTXs = append(unspentTXs, *tx)
-				}
-
-			}
-			if tx.IsCoinbase() == false {
-				for _, in := range tx.Vin {
-					if in.CanUnlockOutputWith(address) {
-						inTxID := hex.EncodeToString(in.Txid)
-						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
-					}
-				}
-			}
-		}
-
-		if len(block.PrevBlockHash) == 0 {
-			break
-		}
-	}
-
-	return unspentTXs
-}
-
-// FindSpendableOutputs 寻找并返回没有花掉的输出
-// TODO: 弄清楚这个方法
-func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
-	unspentOutputs := make(map[string][]int)
-	unspentTXs := bc.FindUnspentTransactions(address)
-	accumulated := 0
-
-work:
-	for _, tx := range unspentTXs {
-		txID := hex.EncodeToString(tx.ID)
-
-		for outIdx, out := range tx.Vout {
-			if out.CanBeUnlockedWith(address) && accumulated < amount {
-				accumulated += out.Value
-				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
-
-				if accumulated >= amount {
-					break work
-				}
-			}
-		}
-	}
-
-	return accumulated, unspentOutputs
 }

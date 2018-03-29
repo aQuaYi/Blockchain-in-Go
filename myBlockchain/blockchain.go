@@ -40,7 +40,7 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 		log.Panic(err)
 	}
 
-	newBlock := NewBlock(nil, lastHash)
+	newBlock := NewBlock(transactions, lastHash)
 
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -158,8 +158,7 @@ func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map
 	// 所有未引用输出的累计数量
 	accumulated := 0
 
-work:
-	// 遍历 unspentTXs 中的每一个交易
+Work:
 	for _, tx := range unspentTXs {
 		// 获取此交易的 ID
 		txID := hex.EncodeToString(tx.ID)
@@ -176,9 +175,7 @@ work:
 				// unspentOutputs[txID] = append(unspentOutputs[txID], out.Value)
 
 				if accumulated >= amount {
-					//  如果累计到了足够的钱
-					// 就可以收手了
-					break work
+					break Work
 				}
 			}
 		}

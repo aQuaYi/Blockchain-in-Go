@@ -177,11 +177,15 @@ func CreateBlockchain(address string) *Blockchain {
 // FindUnspentTransactions returns a list of transactions containing unspent outputs
 // TODO: 弄清楚这个方法
 func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
+	// 存放有没有被引用的输出的所有交易
 	var unspentTXs []Transaction
+	// 存放所有已经被引用的输出
 	spentTXOs := make(map[string][]int)
+	// 区块链的迭代器
 	bci := bc.Iterator()
 
 	for {
+		// 从最新的区块开始迭代
 		block := bci.Next()
 
 		// 遍历此 block 的所有交易
@@ -193,16 +197,22 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 		Outputs:
 			// 遍历此交易的所有输出
 			for outIdx, out := range tx.Vout {
-
+				// 如果 spentTXOs 中存在 txID 的记录
 				if spentTXOs[txID] != nil {
+					// 遍历此 txID 的所有记录
 					for _, spentOut := range spentTXOs[txID] {
+						// 如果存在一样的索引号
+						// 则跳过这个交易
 						if spentOut == outIdx {
 							continue Outputs
 						}
 					}
 				}
 
+				// 如果输出 out 可以被 address 解锁
+				// 说明此 out 是address 还没有花的钱
 				if out.CanBeUnlockedWith(address) {
+					// 把这个交易放入 unspentTXs
 					unspentTXs = append(unspentTXs, *tx)
 				}
 

@@ -13,6 +13,10 @@ const subsidy = 10
 
 // Transaction 是交易
 type Transaction struct {
+	// ID 是
+	// 当 Transaction.ID 的内容为 nil 时
+	// 由 Transaction 包含的其他内容的 gob 编码生成的哈希值 // 详见 SetID 方法
+	// 所以，Transaction 的 ID 其实是 哈希值
 	ID   []byte
 	Vin  []TXInput
 	Vout []TXOutput

@@ -115,12 +115,18 @@ func (cli *CLI) Run() {
 
 	// 命令的参数
 	//
+	// getBalance 命令获取的 address 变量放在 getBalanceAddress 变量中
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
+	// createBlockchain 命令获取的 address 变量放在 CreateBlockchainAdress 变量中
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
+	// send 命令的 from 变量放在 sendFrom 中
 	sendFrom := sendCmd.String("from", "", "Source wallet address")
+	// send 命令的 to 变量放在 sendTo 中
 	sendTo := sendCmd.String("to", "", "Destination wallet address")
+	// send 命令的 amount 变量放在 sendAmount 中
 	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
 
+	// 分别解析各个命令
 	switch os.Args[1] {
 	case "getbalance":
 		err := getBalanceCmd.Parse(os.Args[2:])
@@ -148,18 +154,25 @@ func (cli *CLI) Run() {
 	}
 
 	if getBalanceCmd.Parsed() {
+		// 如果 getBalanceAddress 是 "" 的话
 		if *getBalanceAddress == "" {
+			// 输出 getBalance 的用法
 			getBalanceCmd.Usage()
+			// 再退出程序
 			os.Exit(1)
 		}
+		// 执行 getBalance 命令
 		cli.getBalance(*getBalanceAddress)
 	}
 
 	if createBlockchainCmd.Parsed() {
+		// 如果 createBlockchainAddress 是 "" 的话
 		if *createBlockchainAddress == "" {
+			// 输出 CreateBlockchain 的用法
 			createBlockchainCmd.Usage()
 			os.Exit(1)
 		}
+		// 执行 createBlockchain 命令
 		cli.createBlockchain(*createBlockchainAddress)
 	}
 
@@ -168,11 +181,14 @@ func (cli *CLI) Run() {
 	}
 
 	if sendCmd.Parsed() {
+		// 如果没有全部满足 send 命令的要求
 		if *sendFrom == "" || *sendTo == "" || *sendAmount <= 0 {
+			// 输出 send 命令的用法
 			sendCmd.Usage()
 			os.Exit(1)
 		}
 
+		// 执行 send 命令
 		cli.send(*sendFrom, *sendTo, *sendAmount)
 	}
 }

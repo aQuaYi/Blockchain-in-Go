@@ -33,10 +33,13 @@ type BlockchainIterator struct {
 }
 
 // MineBlock mines a new block with the provided transactions
-// 挖掘
+// 以 transactions 为内容，挖掘新的区块
 func (bc *Blockchain) MineBlock(transactions []*Transaction) {
+	// 最新的区块的哈希值
+	// 下一个区块会用到
 	var lastHash []byte
 
+	// 从保存区块链的数据库获取最新的区块的哈希值
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash = b.Get([]byte("l"))
@@ -48,32 +51,43 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 		log.Panic(err)
 	}
 
+	// 生成新的区块
 	newBlock := NewBlock(transactions, lastHash)
 
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
+		// 把最新生成的区块保存到数据库中
+		// 以最新区块的哈希值为键
+		// 以最新区块的序列化的值为值
 		err := b.Put(newBlock.Hash, newBlock.Serialize())
 		if err != nil {
 			log.Panic(err)
 		}
 
+		// 把最新区块的哈希值，作为数据库中 "l" 键的值
 		err = b.Put([]byte("l"), newBlock.Hash)
 		if err != nil {
 			log.Panic(err)
 		}
 
+		// 以最新区块的哈希值，更新 bc.tip
 		bc.tip = newBlock.Hash
 
 		return nil
 	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
 }
 
 // FindUnspentTransactions returns a list of transactions containing unspent outputs
-// TODO: 弄清楚这个方法
+// 返回结果中的所有 unspent outputs 都要能够被 address 解锁
 func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
-	// 存放有没有被引用的输出的所有交易
+	// 存放含有未被引用的输出的所有交易
 	var unspentTXs []Transaction
-	// 存放所有已经被引用的输出
+	// 存放所有已被引用的输出
 	spentTXOs := make(map[string][]int)
 	// 区块链的迭代器
 	bci := bc.Iterator()
@@ -84,8 +98,10 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 
 		// 遍历此 block 的所有交易
 		for _, tx := range block.Transactions {
-			// TODO: txID 到底是什么鬼
-			// 获取这个交易的 ID
+			// 首先获取每个交易的 ID
+			// 像 hex.EncodeToString(tx.ID) 这样处理一下
+			// 可以让 tx.ID 好看一点
+			// 另外 tx.ID 是 []byte 类型，不能作为 map 的 key
 			txID := hex.EncodeToString(tx.ID)
 
 		Outputs:
@@ -97,8 +113,6 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 					for _, spentOut := range spentTXOs[txID] {
 						// 如果存在一样的索引号
 						// 则跳过这个交易
-						// TODO: 此处的代码
-						// if spentOut == out.Value {
 						if spentOut == outIdx {
 							continue Outputs
 						}
@@ -122,7 +136,6 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 					if in.CanUnlockOutputWith(address) {
 						// 获取 input 所引用的 output 所在交易的 ID
 						inTxID := hex.EncodeToString(in.Txid)
-						// TODO: 此处的代码
 						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
 					}
 				}

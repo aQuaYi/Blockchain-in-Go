@@ -46,9 +46,10 @@ func (tx *Transaction) SetID() {
 
 // TXInput 是交易jk的输入值
 type TXInput struct {
-	Txid      []byte // Txid 是此 input 所引用的 output 所在的交易的 ID
-	Vout      int    // Vout 是此 input 所引用的 output 的值
-	ScriptSig string // ScriptSig 是此 input 解锁 output 所用的秘钥
+	// 假设此 input 所引用的 output 属于交易 tx
+	Txid      []byte // tx.ID
+	Vout      int    // NOTICE: output 在 tx.TXOutput 中的索引号
+	ScriptSig string // input 解锁 output 所用的秘钥
 }
 
 // TXOutput 是交易的输出值

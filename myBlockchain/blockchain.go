@@ -134,17 +134,24 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 
 // FindUTXO finds and returns all unspent transaction outputs
 func (bc *Blockchain) FindUTXO(address string) []TXOutput {
+	// 收集所有未花费的输出
 	var UTXOs []TXOutput
+	// 收集所有含有 address 的未花费输出的交易
 	unspentTransactions := bc.FindUnspentTransactions(address)
 
+	// 遍历所有含有 address 的未花费输出的交易
 	for _, tx := range unspentTransactions {
+		// 遍历交易中的所有输出
 		for _, out := range tx.Vout {
+			// 如果输出能够被 address 解锁 → 这是 address 的未花费的输出
 			if out.CanBeUnlockedWith(address) {
+				//  把输出 out 放入 UTXOs 中
 				UTXOs = append(UTXOs, out)
 			}
 		}
 	}
 
+	// 返回所有找到的 address 的未花费的输出
 	return UTXOs
 }
 
@@ -221,6 +228,7 @@ func dbExists() bool {
 }
 
 // NewBlockchain 使用 genesis Block 创建一条新的区块
+// TODO: 暂时 address 参数没用
 func NewBlockchain(address string) *Blockchain {
 	if dbExists() == false {
 		fmt.Println("没有找到区块链数据库。请先创建一个")

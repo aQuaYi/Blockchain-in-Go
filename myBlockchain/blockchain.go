@@ -9,23 +9,31 @@ import (
 	"github.com/boltdb/bolt"
 )
 
+// 区块链数据库的文件名称
 const dbFile = "blockchain.db"
+
+// 区块在 boltDB 中 Bucket 的名称
 const blocksBucket = "blocks"
+
+// 创世区块所包含的消息
 const genesisCoinbaseData = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
 
 // Blockchain keeps a sequence of Blocks
+// 区块链结构体
 type Blockchain struct {
-	tip []byte
-	db  *bolt.DB
+	tip []byte   // 最新的区块的哈希值
+	db  *bolt.DB // 存放区块的数据库文件
 }
 
 // BlockchainIterator is used to iterate over blockchain blocks
+// 区块链迭代器，用于依次访问从最新到最旧的全部区块
 type BlockchainIterator struct {
 	currentHash []byte
 	db          *bolt.DB
 }
 
 // MineBlock mines a new block with the provided transactions
+// 挖掘
 func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
 

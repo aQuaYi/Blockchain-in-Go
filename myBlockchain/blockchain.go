@@ -249,19 +249,23 @@ func dbExists() bool {
 }
 
 // NewBlockchain 使用 genesis Block 创建一条新的区块
-// TODO: 暂时 address 参数没用
 func NewBlockchain(address string) *Blockchain {
+	// 如果保存区块链的数据库不存在
+	// 通知用户并就终止程序
 	if dbExists() == false {
 		fmt.Println("没有找到区块链数据库。请先创建一个")
 		os.Exit(1)
 	}
 
+	// tip 是最新的区块的哈希值
 	var tip []byte
+	// 读取数据库文件
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
 		log.Panic(err)
 	}
 
+	// 获取数据库中的最新的区块的哈希值
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		tip = b.Get([]byte("l"))
@@ -271,6 +275,7 @@ func NewBlockchain(address string) *Blockchain {
 		log.Panic(err)
 	}
 
+	// 利用 tip 和 db 生成数据库对象
 	bc := Blockchain{
 		tip: tip,
 		db:  db,
@@ -281,36 +286,48 @@ func NewBlockchain(address string) *Blockchain {
 
 // CreateBlockchain 创建一个新的区块链数据库文件
 func CreateBlockchain(address string) *Blockchain {
+	// 如果数据库文件存在，说明区块链已经存在
+	// 没必要重新创建区块链数据库
 	if dbExists() {
 		fmt.Println("区块链已经存在")
 		os.Exit(1)
 	}
 
+	// 最新的区块的哈希值
 	var tip []byte
+	// 创建数据库文件
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
 		log.Panic(err)
 	}
 
+	// 往数据库中，添加创世区块的内容
 	err = db.Update(func(tx *bolt.Tx) error {
+		// 生成创世区块的 coinbase 交易
 		cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
+		// 生成创世区块
 		genesis := NewGenesisBlock(cbtx)
 
+		// 创建数据库文件中的 bucket
 		b, err := tx.CreateBucket([]byte(blocksBucket))
 		if err != nil {
 			log.Panic(err)
 		}
 
+		// 把创世区块存入数据库
 		err = b.Put(genesis.Hash, genesis.Serialize())
 		if err != nil {
 			log.Panic(err)
 		}
 
+		// 把创世区块的哈希值，作为 "l" 的值
+		// 存入数据库
 		err = b.Put([]byte("l"), genesis.Hash)
 		if err != nil {
 			log.Panic(err)
 		}
 
+		// 把创世区块的哈希值作为 tip 的值
 		tip = genesis.Hash
 
 		return nil
@@ -320,6 +337,7 @@ func CreateBlockchain(address string) *Blockchain {
 		log.Panic(err)
 	}
 
+	// 利用 tip 和 db 创建区块链
 	bc := Blockchain{
 		tip: tip,
 		db:  db,

@@ -17,34 +17,43 @@ type Transaction struct {
 	// 当 Transaction.ID 的内容为 nil 时
 	// 由 Transaction 包含的其他内容的 gob 编码生成的哈希值 // 详见 SetID 方法
 	// 所以，Transaction 的 ID 其实是 哈希值
-	ID   []byte
-	Vin  []TXInput
+	ID []byte
+	// Vin 要完成此交易，所有引用的输入的集合
+	Vin []TXInput
+	// Vout 完成此交易后，所有的产生的输出的集合
 	Vout []TXOutput
 }
 
 // IsCoinbase 返回 true 如果 tx 是一个 coinbase 交易
 func (tx Transaction) IsCoinbase() bool {
-	return len(tx.Vin) == 1 &&
-		len(tx.Vin[0].Txid) == 0 &&
-		tx.Vin[0].Vout == -1
+	return len(tx.Vin) == 1 && // coinbase 只引用了一个输入
+		len(tx.Vin[0].Txid) == 0 && // 这唯一的输入，所引用的输出所在的区块的 ID 是空的
+		tx.Vin[0].Vout == -1 // 这唯一的输入，所引用的输出的索引号为 -1
 }
 
 // SetID 为此 transaction 设置 ID
 // ID 是根据交易中输入输出的内容生成的哈希值
 func (tx *Transaction) SetID() {
+	// encoded 是 tx 的序列化编码
 	var encoded bytes.Buffer
+	// hash 是序列化编码提供生成的哈希值
 	var hash [32]byte
 
+	// 先进行序列化工作
 	enc := gob.NewEncoder(&encoded)
 	err := enc.Encode(tx)
 	if err != nil {
 		log.Panic(err)
 	}
+
+	// 再由序列化的值，生成哈希值
 	hash = sha256.Sum256(encoded.Bytes())
+
+	// 最后，设置为 tx 的 ID
 	tx.ID = hash[:]
 }
 
-// TXInput 是交易jk的输入值
+// TXInput 是交易的输入值
 type TXInput struct {
 	// 假设此 input 所引用的 output 属于交易 tx
 	Txid      []byte // tx.ID
@@ -71,25 +80,30 @@ func (out *TXOutput) CanBeUnlockedWith(unlockingData string) bool {
 // NewCoinbaseTX 创建 coinbase 交易
 // 就是没有输入的交易
 func NewCoinbaseTX(to, data string) *Transaction {
+	// 为输入准备数据
 	if data == "" {
 		data = fmt.Sprintf("Reward to '%s'", to)
 	}
 
+	// 生成输入
 	txin := TXInput{
 		Txid:      []byte{},
 		Vout:      -1,
 		ScriptSig: data,
 	}
 
+	// 生成输出
 	txout := TXOutput{
 		Value:        subsidy,
 		ScriptPubkey: to,
 	}
 
+	// 生成交易
 	tx := Transaction{
 		Vin:  []TXInput{txin},
 		Vout: []TXOutput{txout},
 	}
+	// 设置交易 ID
 	tx.SetID()
 
 	return &tx

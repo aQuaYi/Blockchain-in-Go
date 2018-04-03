@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
@@ -51,14 +53,6 @@ func (tx *Transaction) SetID() {
 
 	// 最后，设置为 tx 的 ID
 	tx.ID = hash[:]
-}
-
-// TXInput 是交易的输入值
-type TXInput struct {
-	// 假设此 input 所引用的 output 属于交易 tx
-	Txid      []byte // tx.ID
-	Vout      int    // NOTICE: output 在 tx.TXOutput 中的索引号
-	ScriptSig string // input 解锁 output 所用的秘钥
 }
 
 // TXOutput 是交易的输出值
@@ -171,4 +165,56 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	tx.SetID()
 
 	return &tx
+}
+
+// Sign signs each input of a Transaction
+// 对交易的每一个输入进行签名
+func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
+	if tx.IsCoinbase() {
+		return
+	}
+
+	// 确保每一个输入的所引用的输出所在的交易，都存在
+	for _, vin := range tx.Vin {
+		if prevTXs[hex.EncodeToString(vin.Txid)].ID == nil {
+			log.Panic("ERROR: Previous transaction is not correct")
+		}
+	}
+
+	// 对交易中包含的信息进行裁剪，只留下需要签名的部分。
+	txCopy := tx.TrimmedCopy()
+
+	for inID, vin := range txCopy.Vin {
+		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
+		txCopy.Vin[inID].Signature = nil
+		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
+		txCopy.ID = txCopy.Hash()
+		txCopy.Vin[inID].PubKey = nil
+
+		r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.ID)
+		if err != nil {
+			log.Panic(err)
+		}
+		signature := append(r.Bytes(), s.Bytes()...)
+
+		tx.Vin[inID].Signature = signature
+	}
+}
+
+// TrimmedCopy creates a trimmed copy of Transaction to be used in signing
+func (tx *Transaction) TrimmedCopy() Transaction {
+	var inputs []TXInput
+	var outputs []TXOutput
+
+	for _, vin := range tx.Vin {
+		inputs = append(inputs, TXInput{vin.Txid, vin.Vout, nil, nil})
+	}
+
+	for _, vout := range tx.Vout {
+		outputs = append(outputs, TXOutput{vout.Value, vout.PubKeyHash})
+	}
+
+	txCopy := Transaction{tx.ID, inputs, outputs}
+
+	return txCopy
 }
